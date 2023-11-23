@@ -56,7 +56,9 @@ unsigned long previousTime=0,previousTime2,previousTime3;
 //Senha email: "SmartFrigo_11_21_23"
 
 /* Recipient's email*/
-String RECIPIENT_EMAIL ="eletronicaist@gmail.com";
+String RECIPIENT_EMAIL;
+
+uint8_t Count_Email =0;
 
 //////////////////////////////////////////////////////////////////////////////
 Preferences preferences;
@@ -155,9 +157,14 @@ void loop() {
           operacao=2;
           contador+=1;
           if(dt>5000){
-            sendMessage("Temperatura maior que o esperado para monitorar, "+String(event.temperature));
+            sendMessage("A temperatura do freezer esta acima  do limite estabelecido, temperatura atual: "+String(event.temperature)+"°C");
             Tmonitoramento=millis();
-            
+            Count_Email+=1;
+            if(Count_Email == 5){
+              Count_Email=0;
+              String Mensagem= "A temperatura do freezer esta acima do limite estabelecido, temperatura atual: "+String(event.temperature)+"°C";
+              Email_Sender(Contato,"Notificação SmatFrigo",Mensagem);
+            }
           }
           
         }
@@ -248,7 +255,7 @@ void GetData(){
       clientAP.println("<label for=\"PassMQTT\">Numero do Whatsapp:</label><br><input type=\"text\" id=\"PassMQTT\" name=\"PassMQTT\"><br><br>");
       clientAP.println("<label for=\"MQTTSERVER\">Codigo dado pela API:</label><br><input type=\"text\" id=\"MQTTSERVER\" name=\"MQTTSERVER\"><br><br>");
       clientAP.println("<label for=\"Setpoint\">Temperatura a ser monitorada:</label><br><input type=\"text\" id=\"Setpoint\" name=\"Setpoint\"><br><br>");
-      clientAP.println("<label for=\"Email\">Email do contato:</label><br><input type=\"text\" id=\"Email\" name=\"Email\"><br><br>");
+      clientAP.println("<label for=\"Email\">Email do contato:</label><br><input type=\"email\" id=\"Email\" name=\"Email\"><br><br>");
       clientAP.println("<input type=\"submit\" value=\"Submit\">");
       clientAP.println("</form></body></html>");
       
@@ -266,7 +273,17 @@ void GetData(){
         SetPoint   = req.substring(req.indexOf("&Setpoint")+10,req.indexOf("&Email"));
         Email      =req.substring(req.indexOf("&Email")+7);
 
+
+
         Whataspp="+55" + Whataspp;
+
+//        tratativa Email 
+        String Part_1_Email = Email.substring(0,Email.indexOf("%"));
+        Email.remove(0,Email.indexOf("%40")+3);
+        
+        
+
+        Email = Part_1_Email+"@"+Email;
         
         preferences.putString("ssid", ssid); 
   
@@ -289,6 +306,7 @@ void GetData(){
         Serial.println(Chave_API);
         Serial.println(SetPoint);
         Serial.println(Email);
+        
         
         flag =1;
         clientAP.println("<meta http-equiv=\"refresh\" content=\"0.5\">");
@@ -367,7 +385,7 @@ void ReadDataStored(){
   Whataspp=preferences.getString("Whataspp", "");   
   Chave_API=preferences.getString("Chave_API", "");   
   SetPoint=preferences.getString("SetPoint", "");   
-  Email=preferences.getString("Email", "");
+  RECIPIENT_EMAIL=preferences.getString("Email", "");
   
 }
 
