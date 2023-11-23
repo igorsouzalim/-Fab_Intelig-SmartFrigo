@@ -15,7 +15,7 @@
 //Senha email: "SmartFrigo_11_21_23"
 
 /* Recipient's email*/
-#define RECIPIENT_EMAIL "eletronicaist@gmail.com"
+String RECIPIENT_EMAIL ="eletronicaist@gmail.com";
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /* Declare the global used SMTPSession object for SMTP transport */
 SMTPSession smtp;
