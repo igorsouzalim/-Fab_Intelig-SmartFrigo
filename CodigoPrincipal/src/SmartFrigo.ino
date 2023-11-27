@@ -38,9 +38,7 @@ const char* password1 = "123456789";
 String ssid,Password,Contato,Whataspp,Chave_API,SetPoint,Email;
 bool FirstMessage = 0;
 int flag = 0;
-int t1=0,t2=0,dt=0,Tmonitoramento=0,Tled=0;
-int contador=0;
-unsigned long currentTime=0;
+int Tmonitoramento=0;
 unsigned long previousTime=0,previousTime2,previousTime3,previousTime4;
 float Temperatura;
 
@@ -103,98 +101,111 @@ void setup() {
 }
 
 void loop() { 
-  bool Reset = digitalRead(BUTTON_PIN);
-  uint8_t operacao=3;
-  
-  currentTime=millis();
 
-  if(WiFi.status() != WL_CONNECTED){
-    InitWifi();
-    digitalWrite(SINAL,HIGH);
-  }
-  else{
+  bool Reset = digitalRead(BUTTON_PIN);
+  uint8_t operacao = 0;
   
-    if((currentTime-previousTime3)>18000000){  //18000000
-      previousTime3=currentTime;
+  if((millis()-previousTime3)>18000000){  // RESET DO DISPOSITIVO A CADA 5 HORAS
+    previousTime3=millis();
+    ESP.restart();
+  }
+
+  if(Reset==LOW)  //BOTAO FACTORY RESET
+  {
+    delay(3000);
+    if(Reset==LOW){
+      digitalWrite(SINAL,LOW);
+      WiFi.disconnect(true,true);
+      GetData();
       ESP.restart();
     }
-    //delay(500);
-    sensors_event_t event;
+  }
+    
+  /*
+    INICIO DA LOGICA PRINCIPAL
+  */  
+  if(WiFi.status() != WL_CONNECTED){   
+    InitWifi();
+    digitalWrite(SINAL,LOW);
+  }
+  else
+  {
+    if((millis()-previousTime4)>3000)
+    {  
+      previousTime4 = millis();
 
-    if((currentTime-previousTime4)>5000){  
-      previousTime4 = currentTime;
+      sensors_event_t event;
       dht.temperature().getEvent(&event);
-      Temperatura = event.temperature;
 
-      Serial.print(F("Temperature: "));
-      Serial.print(Temperatura);
-      Serial.println(F("graus Celsius"));
-    }
-
-    t2=millis();
-  
-    if(Reset==LOW){
-    delay(3000);
-      if(Reset==LOW){
-        digitalWrite(SINAL,LOW);
-        WiFi.disconnect(true,true);
-        GetData();
-        ESP.restart();
-      }
-    }
-    else{  
-      if (isnan(event.temperature)) {
+      if (isnan(event.temperature)){
         Serial.println(F("Error reading temperature!"));
-        operacao=1;
+        operacao = 1;
       }
       else {
+        Temperatura = event.temperature;
+        Serial.print(F("Temperature: "));
+        Serial.print(Temperatura);
+        Serial.println(F("ºC"));
+      }
+    }
         
-        dt=t2-Tmonitoramento;
-        if(Temperatura > SetPoint.toFloat()){
-          operacao=2;
-          contador+=1;
+    if(Temperatura > SetPoint.toFloat() && operacao == 0){  //Se nao deu problema na leitura de temperatura e a temperatura for maior que o setpoint
 
-          if(FirstMessage == 0){ //60000 
-            sendMessage("A temperatura do freezer esta acima  do limite estabelecido. Temperatura atual: "+String(Temperatura)+" graus Celsius");
-            FirstMessage = 1;
-          }
+      operacao=2;
 
-          if(dt>65000){  //300000
-            sendMessage("A temperatura do freezer esta acima  do limite estabelecido. Temperatura atual: "+String(Temperatura)+"graus Celsius");
-            Tmonitoramento=millis();
-            Count_Email+=1;
-            if(Count_Email == 5){
-              Count_Email=0;
-              String Mensagem= "A temperatura do freezer esta acima do limite estabelecido. Temperatura atual: "+String(Temperatura)+"graus Celsius";
-              digitalWrite(SINAL,LOW);
-              Email_Sender(Contato,"Notificação SmatFrigo",Mensagem);
-            }
-          }
-          
-        }
-        else{
-          FirstMessage = 0;
-          operacao = 3;
+      if(FirstMessage == 0)
+      { 
+        sendMessage("A temperatura do freezer esta acima  do limite estabelecido. Temperatura atual: "+String(Temperatura)+" Graus Celsius");
+        FirstMessage = 1;
+      }
+
+      if((millis()-Tmonitoramento)>65000)  //300000
+      { 
+        sendMessage("A temperatura do freezer esta acima  do limite estabelecido. Temperatura atual: "+String(Temperatura)+" Graus Celsius");
+
+        Tmonitoramento=millis();
+        Count_Email+=1;
+
+        if(Count_Email == 5)
+        {
+          Count_Email=0;
+          String Mensagem= "A temperatura do freezer esta acima do limite estabelecido. Temperatura atual: "+String(Temperatura)+" Graus Celsius";
+          digitalWrite(SINAL,LOW);
+          Email_Sender(Contato,"Notificação SmatFrigo",Mensagem);
         }
       }
     }
-  
-    if(((currentTime-previousTime)>100) && (operacao == 1)){
-      previousTime=currentTime;
-      digitalWrite(SINAL,!digitalRead(SINAL));
+    else
+    {
+      FirstMessage = 0;
+      operacao = 3;
     }
-  
-    if(((currentTime-previousTime)>250) && (operacao == 2)){
-      previousTime=currentTime;
-      digitalWrite(SINAL,!digitalRead(SINAL));
-    }
-  
-    if(((currentTime-previousTime)>1000) && (operacao == 3)){
-      previousTime=currentTime;
-      digitalWrite(SINAL,!digitalRead(SINAL));
-    }
+
   }
+
+  
+    if(((millis()-previousTime)>100) && (operacao == 1)){ // Falha na leitura do sensor
+      previousTime=millis();
+      digitalWrite(SINAL,!digitalRead(SINAL));
+    }
+  
+    if(((millis()-previousTime)>1500) && (operacao == 2)){  //Temperatura quente
+      previousTime=millis();
+      digitalWrite(SINAL,HIGH);
+      delay(250);
+      digitalWrite(SINAL,LOW);
+      delay(500);
+      digitalWrite(SINAL,HIGH);
+      delay(250);
+      digitalWrite(SINAL,LOW);
+    }
+  
+    if(((millis()-previousTime)>1000) && (operacao == 3)){ //Tudo normal
+      previousTime=millis();
+      digitalWrite(SINAL,!digitalRead(SINAL));
+    }
 }
+
 ///////////////////////////////////////
 void GetData(){
   while(flag == 0){
