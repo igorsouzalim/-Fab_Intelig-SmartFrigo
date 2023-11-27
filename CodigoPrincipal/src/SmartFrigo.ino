@@ -39,12 +39,10 @@ String ssid,Password,Contato,Whataspp,Chave_API,SetPoint,Email;
 bool FirstMessage = 0;
 int flag = 0;
 int t1=0,t2=0,dt=0,Tmonitoramento=0,Tled=0;
-
 int contador=0;
-
-
 unsigned long currentTime=0;
 unsigned long previousTime=0,previousTime2,previousTime3,previousTime4;
+float Temperatura;
 
 /** The smtp host name e.g. smtp.gmail.com for GMail or smtp.office365.com for Outlook or smtp.mail.yahoo.com */
 #define SMTP_HOST "smtp.gmail.com"
@@ -123,11 +121,13 @@ void loop() {
     //delay(500);
     sensors_event_t event;
 
-    if((currentTime-previousTime4)>1000){  
+    if((currentTime-previousTime4)>5000){  
       previousTime4 = currentTime;
       dht.temperature().getEvent(&event);
+      Temperatura = event.temperature;
+
       Serial.print(F("Temperature: "));
-      Serial.print(event.temperature);
+      Serial.print(Temperatura);
       Serial.println(F("graus Celsius"));
     }
 
@@ -150,24 +150,23 @@ void loop() {
       else {
         
         dt=t2-Tmonitoramento;
-        if(event.temperature > SetPoint.toFloat()){
+        if(Temperatura > SetPoint.toFloat()){
           operacao=2;
           contador+=1;
 
           if(FirstMessage == 0){ //60000 
-            sendMessage("A temperatura do freezer esta acima  do limite estabelecido. Temperatura atual: "+String(event.temperature)+" graus Celsius");
-            String Mensagem= "A temperatura do freezer esta acima do limite estabelecido. Temperatura atual: "+String(event.temperature)+"graus Celsius";
-            Email_Sender(Contato,"Notificação SmatFrigo",Mensagem);
+            sendMessage("A temperatura do freezer esta acima  do limite estabelecido. Temperatura atual: "+String(Temperatura)+" graus Celsius");
             FirstMessage = 1;
           }
 
           if(dt>65000){  //300000
-            sendMessage("A temperatura do freezer esta acima  do limite estabelecido. Temperatura atual: "+String(event.temperature)+"graus Celsius");
+            sendMessage("A temperatura do freezer esta acima  do limite estabelecido. Temperatura atual: "+String(Temperatura)+"graus Celsius");
             Tmonitoramento=millis();
             Count_Email+=1;
             if(Count_Email == 5){
               Count_Email=0;
-              String Mensagem= "A temperatura do freezer esta acima do limite estabelecido. Temperatura atual: "+String(event.temperature)+"graus Celsius";
+              String Mensagem= "A temperatura do freezer esta acima do limite estabelecido. Temperatura atual: "+String(Temperatura)+"graus Celsius";
+              digitalWrite(SINAL,LOW);
               Email_Sender(Contato,"Notificação SmatFrigo",Mensagem);
             }
           }
@@ -185,7 +184,7 @@ void loop() {
       digitalWrite(SINAL,!digitalRead(SINAL));
     }
   
-    if(((currentTime-previousTime)>500) && (operacao == 2)){
+    if(((currentTime-previousTime)>250) && (operacao == 2)){
       previousTime=currentTime;
       digitalWrite(SINAL,!digitalRead(SINAL));
     }
