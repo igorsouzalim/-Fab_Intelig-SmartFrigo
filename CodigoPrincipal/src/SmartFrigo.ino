@@ -36,7 +36,7 @@ const char* ssid1     = "SmartFrigo";
 const char* password1 = "123456789";
 
 String ssid,Password,Contato,Whataspp,Chave_API,SetPoint,Email;
-
+bool FirstMessage = 0;
 int flag = 0;
 int t1=0,t2=0,dt=0,Tmonitoramento=0,Tled=0;
 
@@ -44,7 +44,7 @@ int contador=0;
 
 
 unsigned long currentTime=0;
-unsigned long previousTime=0,previousTime2,previousTime3;
+unsigned long previousTime=0,previousTime2,previousTime3,previousTime4;
 
 /** The smtp host name e.g. smtp.gmail.com for GMail or smtp.office365.com for Outlook or smtp.mail.yahoo.com */
 #define SMTP_HOST "smtp.gmail.com"
@@ -115,40 +115,39 @@ void loop() {
   if(WiFi.status() != WL_CONNECTED){
     InitWifi();
     digitalWrite(SINAL,HIGH);
-  }else{
+  }
+  else{
   
     if((currentTime-previousTime3)>18000000){  //18000000
       previousTime3=currentTime;
       ESP.restart();
     }
-  
-    delay(500);
+    //delay(500);
     sensors_event_t event;
-    dht.temperature().getEvent(&event);
-    
+
+    if((currentTime-previousTime4)>1000){  
+      previousTime4 = currentTime;
+      dht.temperature().getEvent(&event);
+      Serial.print(F("Temperature: "));
+      Serial.print(event.temperature);
+      Serial.println(F("graus Celsius"));
+    }
+
     t2=millis();
   
-    
-  
     if(Reset==LOW){
-      if((currentTime-previousTime2)>30000){  
-        previousTime2=currentTime;
+    delay(3000);
+      if(Reset==LOW){
+        digitalWrite(SINAL,LOW);
         WiFi.disconnect(true,true);
         GetData();
         ESP.restart();
       }
-      
-    }else{  
+    }
+    else{  
       if (isnan(event.temperature)) {
         Serial.println(F("Error reading temperature!"));
-        
         operacao=1;
-        
-        dt=t2-Tmonitoramento;
-        if(dt>60000){
-          //sendMessage("Algo de errado aconteceu com o sensor, verifique");
-          Tmonitoramento=millis();
-        }
       }
       else {
         
@@ -156,49 +155,43 @@ void loop() {
         if(event.temperature > SetPoint.toFloat()){
           operacao=2;
           contador+=1;
-          if(dt>600000){
-            sendMessage("A temperatura do freezer esta acima  do limite estabelecido. Temperatura atual: "+String(event.temperature)+"°C");
+
+          if(FirstMessage == 0){ //60000 
+            sendMessage("A temperatura do freezer esta acima  do limite estabelecido. Temperatura atual: "+String(event.temperature)+" graus Celsius");
+            String Mensagem= "A temperatura do freezer esta acima do limite estabelecido. Temperatura atual: "+String(event.temperature)+"graus Celsius";
+            Email_Sender(Contato,"Notificação SmatFrigo",Mensagem);
+            FirstMessage = 1;
+          }
+
+          if(dt>65000){  //300000
+            sendMessage("A temperatura do freezer esta acima  do limite estabelecido. Temperatura atual: "+String(event.temperature)+"graus Celsius");
             Tmonitoramento=millis();
             Count_Email+=1;
             if(Count_Email == 5){
               Count_Email=0;
-              String Mensagem= "A temperatura do freezer esta acima do limite estabelecido. Temperatura atual: "+String(event.temperature)+"°C";
+              String Mensagem= "A temperatura do freezer esta acima do limite estabelecido. Temperatura atual: "+String(event.temperature)+"graus Celsius";
               Email_Sender(Contato,"Notificação SmatFrigo",Mensagem);
             }
           }
           
         }
-        
-        Serial.print(F("Temperature: "));
-        Serial.print(event.temperature);
-        Serial.println(F("°C"));
+        else{
+          FirstMessage = 0;
+        }
       }
     }
   
-    if(((currentTime-previousTime)>100) && (operacao ==1)){
+    if(((currentTime-previousTime)>100) && (operacao == 1)){
       previousTime=currentTime;
-      digitalWrite(SINAL,HIGH);
-      delay(50);
-      digitalWrite(SINAL,LOW);
+      digitalWrite(SINAL,!digitalRead(SINAL));
     }
   
-    if(((currentTime-previousTime)>400) && (operacao ==2)){
+    if(((currentTime-previousTime)>500) && (operacao == 2)){
       previousTime=currentTime;
-      digitalWrite(SINAL,HIGH);
-      delay(45);
-      digitalWrite(SINAL,LOW);
-      delay(45);
-      digitalWrite(SINAL,HIGH);
-      delay(45);
-      digitalWrite(SINAL,LOW);
-      delay(45);
-      digitalWrite(SINAL,HIGH);
-      delay(100);
-      digitalWrite(SINAL,LOW);
-      delay(80);
+      digitalWrite(SINAL,!digitalRead(SINAL));
     }
   
-    if(((currentTime-previousTime)>1000) && (operacao ==3)){
+    if(((currentTime-previousTime)>1000) && (operacao == 3)){
       previousTime=currentTime;
       digitalWrite(SINAL,!digitalRead(SINAL));
     }
@@ -346,19 +339,16 @@ void  InitWifi() {
 
       if(digitalRead(BUTTON_PIN)==LOW){
         WiFi.disconnect(true,true);
+        digitalWrite(SINAL,LOW);
         GetData();
         ESP.restart();
       }
 
-      if(wifi_cicle>300)     //reinicia para refazer o begin e tentar conectar de novo
+      if(wifi_cicle>400)     //reinicia para refazer o begin e tentar conectar de novo
       {
         Serial.println("Reiniciando...");
         wifi_cicle = 0;
-        for(int i =0;i<10;i++)
-        {
-          digitalWrite(SINAL,!digitalRead(SINAL));
-          delay(200);
-        }
+        digitalWrite(SINAL,LOW);
         ESP.restart();
       }
     }
