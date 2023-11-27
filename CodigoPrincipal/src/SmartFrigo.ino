@@ -110,8 +110,6 @@ void loop() {
   
   currentTime=millis();
 
-  
-  
   if(WiFi.status() != WL_CONNECTED){
     InitWifi();
     digitalWrite(SINAL,HIGH);
@@ -177,6 +175,7 @@ void loop() {
         }
         else{
           FirstMessage = 0;
+          operacao = 3;
         }
       }
     }
