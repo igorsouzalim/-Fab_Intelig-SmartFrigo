@@ -142,10 +142,30 @@ void loop() {
         operacao = 1;
       }
       else {
-        Temperatura = event.temperature;
+        float temp = event.temperature;
+        cont=0;
+        while((temp <-100.0) || (temp > 100.0))
+        {
+          sensors_event_t event;
+          dht.temperature().getEvent(&event);
+          delay(300);
+          temp = event.temperature;
+          Serial.println("tentando DHT11...");
+          if(cont > 5)
+            break;
+        }
+
+          if(Temperatura <-100.0) || (Temperatura > 100.0)
+        {
+          Serial.println("Temperatura fora dos limites normais...")
+        }
+        else{
+          Temperatura = temp;
+        }
+
         Serial.print(F("Temperature: "));
         Serial.print(Temperatura);
-        Serial.println(F("ºC"));
+        Serial.println(F(" C"));
       }
     }
         
@@ -177,8 +197,12 @@ void loop() {
     }
     else
     {
-      FirstMessage = 0;
-      operacao = 3;
+      if(operacao == 0)
+      {
+        FirstMessage = 0;
+        operacao = 3;
+      }
+      
     }
 
   }
