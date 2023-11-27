@@ -156,13 +156,13 @@ void loop() {
         if(event.temperature > SetPoint.toFloat()){
           operacao=2;
           contador+=1;
-          if(dt>5000){
-            sendMessage("A temperatura do freezer esta acima  do limite estabelecido, temperatura atual: "+String(event.temperature)+"°C");
+          if(dt>600000){
+            sendMessage("A temperatura do freezer esta acima  do limite estabelecido. Temperatura atual: "+String(event.temperature)+"°C");
             Tmonitoramento=millis();
             Count_Email+=1;
             if(Count_Email == 5){
               Count_Email=0;
-              String Mensagem= "A temperatura do freezer esta acima do limite estabelecido, temperatura atual: "+String(event.temperature)+"°C";
+              String Mensagem= "A temperatura do freezer esta acima do limite estabelecido. Temperatura atual: "+String(event.temperature)+"°C";
               Email_Sender(Contato,"Notificação SmatFrigo",Mensagem);
             }
           }
