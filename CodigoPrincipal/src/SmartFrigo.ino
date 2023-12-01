@@ -137,7 +137,7 @@ void loop() {
     INICIO DA LOGICA PRINCIPAL
   */  
 
-  operacao = 0;
+  //operacao = 0;
 
   if(WiFi.status() != WL_CONNECTED){   
     InitWifi();
