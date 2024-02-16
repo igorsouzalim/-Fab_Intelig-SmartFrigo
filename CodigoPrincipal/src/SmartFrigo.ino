@@ -16,8 +16,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <Adafruit_Sensor.h>
-#include <DHT.h>
+//#include <Adafruit_Sensor.h>
+//#include <DHT.h>
 #include <DHT_U.h>
 #include <Arduino.h>
 #include <ESP_Mail_Client.h>
@@ -38,9 +38,10 @@ const char* password1 = "123456789";
 String ssid,Password,Contato,Whataspp,Chave_API,SetPoint,Email;
 bool FirstMessage = 0;
 int flag = 0;
-int Tmonitoramento=0;
+unsigned long Tmonitoramento=0;
 unsigned long previousTime=0,previousTime2,previousTime3,previousTime4;
-float Temperatura;
+float Temperatura = -100; //precisa começar em -100 pra evitar bug de enviar whatsApp dizendo 0 graus
+unsigned int erroSensor = 0, operacao = 0, msgEnviada = 0;
 
 /** The smtp host name e.g. smtp.gmail.com for GMail or smtp.office365.com for Outlook or smtp.mail.yahoo.com */
 #define SMTP_HOST "smtp.gmail.com"
@@ -90,47 +91,61 @@ void setup() {
     InitWifi();
   }
 
-  delay(500);
   dht.begin();
-  
+  delay(500);
+
+  previousTime4 = millis();
+
+  /*
   sensor_t sensor;
   dht.temperature().getSensor(&sensor);
   dht.humidity().getSensor(&sensor);
   delayMS = sensor.min_delay / 1000;
-
+*/
 }
 
 void loop() { 
 
-  bool Reset = digitalRead(BUTTON_PIN);
-  uint8_t operacao = 0;
-  
   if((millis()-previousTime3)>18000000){  // RESET DO DISPOSITIVO A CADA 5 HORAS
     previousTime3=millis();
     ESP.restart();
   }
 
-  if(Reset==LOW)  //BOTAO FACTORY RESET
+  if(digitalRead(BUTTON_PIN) == LOW)  //BOTAO FACTORY RESET
   {
-    delay(3000);
-    if(Reset==LOW){
+    for(int i=0;i<10;i++)
+    {
+      delay(500);
+      digitalWrite(SINAL,!digitalRead(SINAL));
+    }
+
+    if(digitalRead(BUTTON_PIN) == LOW){  // Se ainda estiver apertado faz Factory Reset
       digitalWrite(SINAL,LOW);
       WiFi.disconnect(true,true);
       GetData();
       ESP.restart();
+    }
+    else{                              //Se não envia temperatura atual do freezer por E-mail
+      //sendMessage("Temperatura atual do freezer: " + String(Temperatura)+" Graus Celsius");
+      String Mensagem= "[Requisicao do usuario] Temperatura atual do freezer: "+String(Temperatura)+" Graus Celsius";
+      digitalWrite(SINAL,HIGH);
+      Email_Sender(Contato,"Notificação SmatFrigo",Mensagem);
     }
   }
     
   /*
     INICIO DA LOGICA PRINCIPAL
   */  
+
+  //operacao = 0;
+
   if(WiFi.status() != WL_CONNECTED){   
     InitWifi();
     digitalWrite(SINAL,LOW);
   }
   else
   {
-    if((millis()-previousTime4)>3000)
+    if((millis()-previousTime4)>5000)
     {  
       previousTime4 = millis();
 
@@ -139,28 +154,67 @@ void loop() {
 
       if (isnan(event.temperature)){
         Serial.println(F("Error reading temperature!"));
-        operacao = 1;
+        erroSensor++;
+
+        if(erroSensor>7)
+        {
+          operacao = 1;
+          erroSensor = 0;
+        }
+          
       }
-      else {
-        Temperatura = event.temperature;
+      else 
+      {
+        float temp = event.temperature;
+        int cont = 0;
+
+        while((temp <-100.0) || (temp > 100.0) )
+        {
+          sensors_event_t event;
+          dht.temperature().getEvent(&event);
+          delay(300);
+          temp = event.temperature;
+          Serial.println("tentando DHT22...");
+          if(cont > 5)
+          {
+            Serial.println("Break While DHT22");
+            break;
+          }
+            
+        }
+
+        if((Temperatura <-100.0) || (Temperatura > 100.0))
+        {
+          Serial.println("Temperatura fora dos limites normais...");
+        }
+        else
+        {
+          Temperatura = temp;
+        }
+
         Serial.print(F("Temperature: "));
         Serial.print(Temperatura);
-        Serial.println(F("ºC"));
+        Serial.println(F(" C"));
+
+        erroSensor = 0;
+        operacao = 0;
       }
     }
         
     if(Temperatura > SetPoint.toFloat() && operacao == 0){  //Se nao deu problema na leitura de temperatura e a temperatura for maior que o setpoint
 
       operacao=2;
-
-      if(FirstMessage == 0)
+      
+      if(FirstMessage == 0)  // Começa a contar o tempo para mandar msg
       { 
-        sendMessage("A temperatura do freezer esta acima  do limite estabelecido. Temperatura atual: "+String(Temperatura)+" Graus Celsius");
+        //sendMessage("A temperatura do freezer esta acima  do limite estabelecido. Temperatura atual: "+String(Temperatura)+" Graus Celsius");
         FirstMessage = 1;
+        Tmonitoramento = millis();
       }
-
-      if((millis()-Tmonitoramento)>65000)  //300000
+      if((millis()-Tmonitoramento) >= 720000 )  //720000  - 12 minutos
       { 
+        msgEnviada = 1;
+        Serial.println("Enviar msg periodica...");
         sendMessage("A temperatura do freezer esta acima  do limite estabelecido. Temperatura atual: "+String(Temperatura)+" Graus Celsius");
 
         Tmonitoramento=millis();
@@ -177,24 +231,33 @@ void loop() {
     }
     else
     {
-      FirstMessage = 0;
-      operacao = 3;
+      if(operacao == 0)
+      {
+        if(FirstMessage == 1 && msgEnviada == 1)
+        {
+          Serial.println("enviando zap: Temp restabelecida!");
+          sendMessage("Temperatura restabelecida! Temperatura atual: "+String(Temperatura)+" Graus Celsius");
+        }
+
+        FirstMessage = 0;
+        operacao = 3;
+        Count_Email=0;
+        msgEnviada = 0;
+      }
     }
 
   }
-
-  
     if(((millis()-previousTime)>100) && (operacao == 1)){ // Falha na leitura do sensor
       previousTime=millis();
       digitalWrite(SINAL,!digitalRead(SINAL));
     }
   
-    if(((millis()-previousTime)>1500) && (operacao == 2)){  //Temperatura quente
+    if(((millis()-previousTime)>2000) && (operacao == 2)){  //Temperatura quente
       previousTime=millis();
       digitalWrite(SINAL,HIGH);
       delay(250);
       digitalWrite(SINAL,LOW);
-      delay(500);
+      delay(180);
       digitalWrite(SINAL,HIGH);
       delay(250);
       digitalWrite(SINAL,LOW);
