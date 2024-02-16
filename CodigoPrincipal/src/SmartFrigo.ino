@@ -68,7 +68,7 @@ void smtpCallback(SMTP_Status status);
 void Email_Sender(String msg);
 void sendMessage(String message);
 void ReadDataStored();
-void  InitWifi();
+void InitWifi();
 void GetData();
 
 //////////////////////////////////////////////////////////////////////////////
